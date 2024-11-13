@@ -1,0 +1,77 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, classification_report
+from xgboost import XGBClassifier
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+
+# Load the dataset
+data_path = "diabetes.csv"  # Update with your file path
+diabetes_data = pd.read_csv(data_path)
+
+# Display basic dataset information
+print("Dataset Shape:", diabetes_data.shape)
+print("First 5 Rows:\n", diabetes_data.head())
+
+# Step 1: Data Preprocessing
+# Handle missing or zero values in specific columns
+columns_to_replace = ['Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI']
+for column in columns_to_replace:
+    diabetes_data[column] = diabetes_data[column].replace(0, np.nan)
+    diabetes_data[column].fillna(diabetes_data[column].mean(), inplace=True)
+
+# Separate features and target variable
+X = diabetes_data.drop('Outcome', axis=1)
+y = diabetes_data['Outcome']
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Scale the features for better performance
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# Step 2: Model 1 - XGBoost
+xgb_model = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+xgb_model.fit(X_train_scaled, y_train)
+
+# Evaluate the XGBoost model
+xgb_predictions = xgb_model.predict(X_test_scaled)
+xgb_accuracy = accuracy_score(y_test, xgb_predictions)
+print("\nXGBoost Accuracy:", xgb_accuracy)
+print("Classification Report (XGBoost):\n", classification_report(y_test, xgb_predictions))
+
+# Step 3: Model 2 - Deep Learning
+dl_model = Sequential([
+    Dense(128, activation='relu', input_shape=(X_train_scaled.shape[1],)),
+    Dropout(0.3),
+    Dense(64, activation='relu'),
+    Dropout(0.3),
+    Dense(1, activation='sigmoid')
+])
+
+# Compile the deep learning model
+dl_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+# Train the deep learning model
+dl_model.fit(X_train_scaled, y_train, epochs=50, batch_size=32, validation_split=0.2, verbose=1)
+
+# Evaluate the deep learning model
+dl_loss, dl_accuracy = dl_model.evaluate(X_test_scaled, y_test, verbose=0)
+print("\nDeep Learning Accuracy:", dl_accuracy)
+
+# Step 4: Prediction for unknown samples
+# Example unknown data (replace with actual values for prediction)
+unknown_sample = np.array([[5, 120, 80, 25, 100, 28.5, 0.5, 35]])  # Replace with real values
+unknown_sample_scaled = scaler.transform(unknown_sample)
+
+# Predictions from both models
+xgb_prediction = xgb_model.predict(unknown_sample_scaled)
+dl_prediction = (dl_model.predict(unknown_sample_scaled) > 0.5).astype(int)
+
+print("\nPredictions for the unknown sample:")
+print("XGBoost Prediction:", "Diabetic" if xgb_prediction[0] == 1 else "Non-Diabetic")
+print("Deep Learning Prediction:", "Diabetic" if dl_prediction[0][0] == 1 else "Non-Diabetic")
